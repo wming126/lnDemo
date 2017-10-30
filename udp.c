@@ -16,7 +16,7 @@
 #include "errno.h"
 #include "termios.h"
 
-#include "sys/mman.h"  
+#include "sys/mman.h"
 #include "sys/ioctl.h"
 
 #include "sys/socket.h"
@@ -24,7 +24,7 @@
 #include "arpa/inet.h"
 
 /**
-参数结构体, 程序需要用的参数组成一个结构体, 
+参数结构体, 程序需要用的参数组成一个结构体,
 这样可以解决参数传递过多问题.
 */
 typedef struct Para_s
@@ -33,15 +33,15 @@ typedef struct Para_s
     int type;
     int port;
     int ip;
-}Para_t;
+} Para_t;
 
-static char *s_string[] = 
+static char *s_string[] =
 {
     "Read",
     "Write",
 };
 
-static char *s_string2[] = 
+static char *s_string2[] =
 {
     "point",
     "multi",
@@ -50,30 +50,6 @@ static char *s_string2[] =
 
 static int send_data(Para_t *pPara);
 static int receive_data(Para_t *pPara);
-
-/**
-    @fn         static int getch2(void)
-    @brief      非阻塞方式读入控制台按键
-    @author     nick.xu
-    @retval     读取的键值
-    @note       函数类似dos中的getch函数, 读取按键时不会阻塞, 应用于按键触发功能的程序.
-*/
-static int getch2(void)
-{
-    int c = 0;
-    struct termios old_opts, new_opts;
-    int ret = 0;
-    int org_set;
-
-    tcgetattr(STDIN_FILENO, &old_opts);
-    new_opts = old_opts;
-    new_opts.c_lflag &= ~(ICANON | ECHO | ISIG | ECHOPRT);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_opts);
-    c = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &old_opts);
-
-    return c;
-}
 
 /**
     @fn         static int print_usage(void)
@@ -98,7 +74,7 @@ static int print_usage(void)
            "Example: udp -r 8080 -p 0\n"
            "Example: udp -r 8080 -p 192.168.1.145\n"
            "Example: udp -r 8080 -m 224.0.0.1\n"
-           );
+          );
 
     return 0;
 }
@@ -114,7 +90,7 @@ static int print_usage(void)
     @retval     -1 失败
     @note       函数使用getopt函数对参数进行解析, 把正确的值写入结构体.
 */
-static int parse_usage(int argc, char *argv[], Para_t* pPara)
+static int parse_usage(int argc, char *argv[], Para_t *pPara)
 {
     int ret = 0;
     int valid = 0;
@@ -143,7 +119,7 @@ static int parse_usage(int argc, char *argv[], Para_t* pPara)
             break;
         }
     }
-    
+
     /* 没有参数 */
     if (optind == 1)
     {
@@ -157,7 +133,7 @@ static int parse_usage(int argc, char *argv[], Para_t* pPara)
         print_usage();
         return -1;
     }
-    
+
     return 0;
 }
 
@@ -179,7 +155,7 @@ int main(int argc, char *argv[])
     /* 默认参数 */
     memset(&para, 0x00, sizeof(Para_t));
     para.port = 8080;
-    
+
     /* 解析参数 */
     ret = parse_usage(argc, argv, &para);
     if (ret != 0)
@@ -187,9 +163,9 @@ int main(int argc, char *argv[])
         ret = -1;
         goto Exit;
     }
-    
-    printf("%s %s ip=0x%x port=%d\n", s_string[para.mode], s_string2[para.type], 
-            para.ip, para.port);
+
+    printf("%s %s ip=0x%x port=%d\n", s_string[para.mode], s_string2[para.type],
+           para.ip, para.port);
 
     if (para.mode)
     {
@@ -199,7 +175,7 @@ int main(int argc, char *argv[])
     {
         ret = receive_data(&para);
     }
-    
+
 Exit:
     return ret;
 }
@@ -223,15 +199,15 @@ static int send_data(Para_t *pPara)
     char opt2 = 0;
     struct sockaddr_in remote;
     int socketLength = sizeof(struct sockaddr_in);
-    
+
     /* 必须清零 */
     memset(&remote, 0x00, sizeof(struct sockaddr_in));
-    
+
     for (i = 0; i < 256; i++)
     {
         buffer[i] = i;
     }
-    
+
     /* 创建套接字 */
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd == -1)
@@ -250,7 +226,7 @@ static int send_data(Para_t *pPara)
         ret = -2;
         goto Exit;
     }
-    
+
     /* 设置ttl值 */
     opt = 255;
     ret = setsockopt (fd, IPPROTO_IP, IP_TTL, (char *)&opt, sizeof(opt));
@@ -271,7 +247,7 @@ static int send_data(Para_t *pPara)
     remote.sin_family = AF_INET;
     remote.sin_port = htons(pPara->port);
     remote.sin_addr.s_addr = pPara->ip;
-    
+
     ret = sendto(fd, (char *)buffer, sizeof(buffer), 0, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
     if (ret != sizeof(buffer))
     {
@@ -286,7 +262,7 @@ Exit:
     {
         close(fd);
     }
-    
+
     return ret;
 }
 
@@ -328,15 +304,9 @@ static int receive_data(Para_t *pPara)
     }
 
     /* 打印接收数据 */
-    printf("press any key to quit.\n");
+    printf("press ctrl+c to quit.\n");
     for (sum = 0; ; sum += length)
     {
-        ret = getch2();
-        if (ret != -1)
-        {
-            break;
-        }
-        
         length = recvfrom(fd, (char *)buffer, sizeof(buffer), 0, (struct sockaddr *)&remote, &socketLength);
         if (length == -1)
         {
@@ -355,7 +325,7 @@ static int receive_data(Para_t *pPara)
     }
 
     ret = 0;
-    
+
 Exit:
     if (fd != -1)
     {

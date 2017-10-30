@@ -1,11 +1,11 @@
 /**
     @file       ttys.c
-    @brief      LinuxÏÂ´®¿Ú²âÊÔ³ÌĞò
+    @brief      Linuxä¸‹ä¸²å£æµ‹è¯•ç¨‹åº
     @copyright  senbo
     @author     nick.xu
     @version    V1.0
-    @date       2017.10.30 V1.0 ´´½¨
-    @note       ³ÌĞòÓÃÀ´²âÊÔ´®¿Ú·¢ËÍÓë½ÓÊÕ
+    @date       2017.10.30 V1.0 åˆ›å»º
+    @note       ç¨‹åºç”¨æ¥æµ‹è¯•ä¸²å£å‘é€ä¸æ¥æ”¶
 */
 
 #include "stdio.h"
@@ -16,12 +16,12 @@
 #include "errno.h"
 #include "termios.h"
 
-#include "sys/mman.h"  
+#include "sys/mman.h"
 #include "sys/ioctl.h"
 
 /**
-²ÎÊı½á¹¹Ìå, ³ÌĞòĞèÒªÓÃµÄ²ÎÊı×é³ÉÒ»¸ö½á¹¹Ìå, 
-ÕâÑù¿ÉÒÔ½â¾ö²ÎÊı´«µİ¹ı¶àÎÊÌâ.
+å‚æ•°ç»“æ„ä½“, ç¨‹åºéœ€è¦ç”¨çš„å‚æ•°ç»„æˆä¸€ä¸ªç»“æ„ä½“,
+è¿™æ ·å¯ä»¥è§£å†³å‚æ•°ä¼ é€’è¿‡å¤šé—®é¢˜.
 */
 typedef struct Para_s
 {
@@ -32,15 +32,15 @@ typedef struct Para_s
     int check;
     char name[64];
     char path[128];
-}Para_t;
+} Para_t;
 
-static char *s_string[] = 
+static char *s_string[] =
 {
     "Read",
     "Write",
 };
 
-static char *s_string2[] = 
+static char *s_string2[] =
 {
     "none",
     "odd",
@@ -51,36 +51,12 @@ static int send_data(Para_t *pPara);
 static int receive_data(Para_t *pPara);
 
 /**
-    @fn         static int getch2(void)
-    @brief      ·Ç×èÈû·½Ê½¶ÁÈë¿ØÖÆÌ¨°´¼ü
-    @author     nick.xu
-    @retval     ¶ÁÈ¡µÄ¼üÖµ
-    @note       º¯ÊıÀàËÆdosÖĞµÄgetchº¯Êı, ¶ÁÈ¡°´¼üÊ±²»»á×èÈû, Ó¦ÓÃÓÚ°´¼ü´¥·¢¹¦ÄÜµÄ³ÌĞò.
-*/
-static int getch2(void)
-{
-    int c = 0;
-    struct termios old_opts, new_opts;
-    int ret = 0;
-    int org_set;
-
-    tcgetattr(STDIN_FILENO, &old_opts);
-    new_opts = old_opts;
-    new_opts.c_lflag &= ~(ICANON | ECHO | ISIG | ECHOPRT);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_opts);
-    c = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &old_opts);
-
-    return c;
-}
-
-/**
     @fn         static int print_usage(void)
-    @brief      ´òÓ¡³ÌĞòÓÃ·¨
+    @brief      æ‰“å°ç¨‹åºç”¨æ³•
     @author     nick.xu
-    @retval     0 ³É¹¦
-    @retval     -1 Ê§°Ü
-    @note       ´òÓ¡³ÌĞòÓÃ·¨¹©Ê¹ÓÃÕß²Î¿¼
+    @retval     0 æˆåŠŸ
+    @retval     -1 å¤±è´¥
+    @note       æ‰“å°ç¨‹åºç”¨æ³•ä¾›ä½¿ç”¨è€…å‚è€ƒ
 */
 static int print_usage(void)
 {
@@ -93,23 +69,23 @@ static int print_usage(void)
            "\tdevice: ttyS device path\n"
            "Example: ttys -w ttyS0 -b 115200 -n 256\n"
            "Example: ttys -r ttyS0 -b 115200\n"
-           );
+          );
 
     return 0;
 }
 
 /**
     @fn         static int parse_usage(int argc, char *argv[], Para_t* pPara)
-    @brief      ½âÎöÃüÁîĞĞ²ÎÊı
+    @brief      è§£æå‘½ä»¤è¡Œå‚æ•°
     @author     nick.xu
-    @param[in]  argc        int         ²ÎÊı¸öÊı
-    @param[in]  argv        char**      ²ÎÊıÖ¸ÕëÊı×é
-    @param[in]  pPara       Para_t      ÄÚ²¿²ÎÊı½á¹¹Ìå
-    @retval     0 ³É¹¦
-    @retval     -1 Ê§°Ü
-    @note       º¯ÊıÊ¹ÓÃgetoptº¯Êı¶Ô²ÎÊı½øĞĞ½âÎö, °ÑÕıÈ·µÄÖµĞ´Èë½á¹¹Ìå.
+    @param[in]  argc        int         å‚æ•°ä¸ªæ•°
+    @param[in]  argv        char**      å‚æ•°æŒ‡é’ˆæ•°ç»„
+    @param[in]  pPara       Para_t      å†…éƒ¨å‚æ•°ç»“æ„ä½“
+    @retval     0 æˆåŠŸ
+    @retval     -1 å¤±è´¥
+    @note       å‡½æ•°ä½¿ç”¨getoptå‡½æ•°å¯¹å‚æ•°è¿›è¡Œè§£æ, æŠŠæ­£ç¡®çš„å€¼å†™å…¥ç»“æ„ä½“.
 */
-static int parse_usage(int argc, char *argv[], Para_t* pPara)
+static int parse_usage(int argc, char *argv[], Para_t *pPara)
 {
     int ret = 0;
     int valid = 0;
@@ -147,73 +123,73 @@ static int parse_usage(int argc, char *argv[], Para_t* pPara)
             return -1;
         }
     }
-    
-    /* Ã»ÓĞ²ÎÊı */
+
+    /* æ²¡æœ‰å‚æ•° */
     if (optind == 1)
     {
         print_usage();
         return -1;
     }
 
-    /* ²ÎÊı²»·ûºÏÂß¼­ */
+    /* å‚æ•°ä¸ç¬¦åˆé€»è¾‘ */
     if ((valid != 1))
     {
         print_usage();
         return -1;
     }
-    
+
     return 0;
 }
 
 /**
     @fn         int main(int argc, char *argv[])
-    @brief      ´®¿Ú²âÊÔº¯Êı
+    @brief      ä¸²å£æµ‹è¯•å‡½æ•°
     @author     nick.xu
-    @param[in]  argc        int         ²ÎÊı¸öÊı
-    @param[in]  argv        char**      ²ÎÊıÖ¸ÕëÊı×é
-    @retval     0 ³É¹¦
-    @retval     -1 Ê§°Ü
-    @note       º¯Êı¸ù¾İÄ£Ê½·Ö±ğµ÷ÓÃ·¢ËÍºÍ½ÓÊÕº¯Êı¡£
+    @param[in]  argc        int         å‚æ•°ä¸ªæ•°
+    @param[in]  argv        char**      å‚æ•°æŒ‡é’ˆæ•°ç»„
+    @retval     0 æˆåŠŸ
+    @retval     -1 å¤±è´¥
+    @note       å‡½æ•°æ ¹æ®æ¨¡å¼åˆ†åˆ«è°ƒç”¨å‘é€å’Œæ¥æ”¶å‡½æ•°ã€‚
 */
 int main(int argc, char *argv[])
 {
     int ret = 0;
     Para_t para;
 
-    /* Ä¬ÈÏ²ÎÊı */
+    /* é»˜è®¤å‚æ•° */
     memset(&para, 0x00, sizeof(Para_t));
     para.baud = 115200;
     para.number = 256;
     switch (para.baud)
     {
-        case 9600:
-            para.baud2 = B9600;
-            break;
-        case 19200:
-            para.baud2 = B19200;
-            break;
-        case 38400:
-            para.baud2 = B38400;
-            break;
-        case 57600:
-            para.baud2 = B57600;
-            break;
-        case 115200:
-        default:
-            para.baud2 = B115200;
+    case 9600:
+        para.baud2 = B9600;
+        break;
+    case 19200:
+        para.baud2 = B19200;
+        break;
+    case 38400:
+        para.baud2 = B38400;
+        break;
+    case 57600:
+        para.baud2 = B57600;
+        break;
+    case 115200:
+    default:
+        para.baud2 = B115200;
     }
-    
-    /* ½âÎö²ÎÊı */
+
+    /* è§£æå‚æ•° */
     ret = parse_usage(argc, argv, &para);
     if (ret != 0)
     {
         ret = -1;
         goto Exit;
     }
-    
-    /* ´òÓ¡½âÎöµÄ²ÎÊı */
-    printf("%s %s baud=%d number=%d 8bit %s\n", s_string[para.mode], para.path, 
-            para.baud, para.number, s_string2[para.check]);
+
+    /* æ‰“å°è§£æçš„å‚æ•° */
+    printf("%s %s baud=%d number=%d 8bit %s\n", s_string[para.mode], para.path,
+           para.baud, para.number, s_string2[para.check]);
 
     if (para.mode)
     {
@@ -223,19 +199,19 @@ int main(int argc, char *argv[])
     {
         ret = receive_data(&para);
     }
-    
+
 Exit:
     return ret;
 }
 
 /**
     @fn         static int send_data(Para_t *pPara)
-    @brief      ·¢ËÍ´®¿ÚÊı¾İ
+    @brief      å‘é€ä¸²å£æ•°æ®
     @author     nick.xu
-    @param[in]  pPara       Para_t      ÄÚ²¿²ÎÊı½á¹¹Ìå
-    @retval     0 ³É¹¦
-    @retval     -1 Ê§°Ü
-    @note       º¯ÊıÏÈÉèÖÃ´®¿ÚÅäÖÃ, È»ºó·¢ËÍÊı¾İ.
+    @param[in]  pPara       Para_t      å†…éƒ¨å‚æ•°ç»“æ„ä½“
+    @retval     0 æˆåŠŸ
+    @retval     -1 å¤±è´¥
+    @note       å‡½æ•°å…ˆè®¾ç½®ä¸²å£é…ç½®, ç„¶åå‘é€æ•°æ®.
 */
 static int send_data(Para_t *pPara)
 {
@@ -247,13 +223,13 @@ static int send_data(Para_t *pPara)
     struct termios option;
     int ctrlbits = 0;
 
-    /* ²âÊÔ·¢ËÍÊı¾İ0x00 - 0xFF */
+    /* æµ‹è¯•å‘é€æ•°æ®0x00 - 0xFF */
     for (i = 0; i < sizeof(buffer); i++)
     {
         buffer[i] = i;
     }
 
-    /* ´ò¿ª·¢ËÍ´®¿Ú */
+    /* æ‰“å¼€å‘é€ä¸²å£ */
     fd = open(pPara->path, O_RDWR, 0);
     if (fd == -1)
     {
@@ -261,37 +237,37 @@ static int send_data(Para_t *pPara)
         return -21;
     }
 
-    /* »ñÈ¡ÒÔÇ°²ÎÊı */
+    /* è·å–ä»¥å‰å‚æ•° */
     ret = tcgetattr(fd, &option);
 
-    /* ÉèÖÃ²¨ÌØÂÊ */
+    /* è®¾ç½®æ³¢ç‰¹ç‡ */
     ret = cfsetispeed(&option, pPara->baud2);
     ret = cfsetospeed(&option, pPara->baud2);
 
-    /* Êı¾İÎ»8Î» Í£Ö¹Î»1Î» ÆæĞ£Ñé */
+    /* æ•°æ®ä½8ä½ åœæ­¢ä½1ä½ å¥‡æ ¡éªŒ */
     option.c_cflag |= (CLOCAL | CREAD);
     option.c_cflag |= PARENB;
     option.c_cflag |= PARODD;
     option.c_cflag &= ~CSTOPB;
     option.c_cflag &= ~CSIZE;
     option.c_cflag |= CS8;
-    option.c_cflag &= ~CRTSCTS; /* È¡ÏûÓ²¼şÁ÷¿ØÖÆ */
+    option.c_cflag &= ~CRTSCTS; /* å–æ¶ˆç¡¬ä»¶æµæ§åˆ¶ */
 
-    /* Ô­Ê¼Ä£Ê½ */
+    /* åŸå§‹æ¨¡å¼ */
     option.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
     option.c_iflag &= ~(IXON | IXOFF | IXANY | INLCR | ICRNL | IGNCR);
     option.c_oflag &= ~(OPOST | ONLCR | OCRNL);
     option.c_cc[VTIME] = 0;
     option.c_cc[VMIN] = 1;
 
-    /* ÉèÖÃÄ£Ê½²¢Çå¿Õ»º³åÇø */
+    /* è®¾ç½®æ¨¡å¼å¹¶æ¸…ç©ºç¼“å†²åŒº */
     ret = tcsetattr(fd, TCSAFLUSH, &option);
 
-    /* 422Ä£Ê½±ØĞëÉèÖÃRTS²ÅÄÜ·¢ËÍ */
+    /* 422æ¨¡å¼å¿…é¡»è®¾ç½®RTSæ‰èƒ½å‘é€ */
     ctrlbits = TIOCM_RTS;
     ret = ioctl(fd, TIOCMBIC, &ctrlbits);
 
-    /* ·¢ËÍ´®¿Ú·¢ËÍÊı¾İ */
+    /* å‘é€ä¸²å£å‘é€æ•°æ® */
     sent = write(fd, buffer, pPara->number);
     if (sent != pPara->number)
     {
@@ -301,7 +277,7 @@ static int send_data(Para_t *pPara)
     }
 
 Exit:
-    /* ¹Ø±Õ´®¿Ú */
+    /* å…³é—­ä¸²å£ */
     if (fd != -1)
     {
         close(fd);
@@ -312,24 +288,24 @@ Exit:
 
 /**
     @fn         static int receive_data(Para_t *pPara)
-    @brief      ½ÓÊÕ´®¿ÚÊı¾İ
+    @brief      æ¥æ”¶ä¸²å£æ•°æ®
     @author     nick.xu
-    @param[in]  pPara       Para_t      ÄÚ²¿²ÎÊı½á¹¹Ìå
-    @retval     0 ³É¹¦
-    @retval     -1 Ê§°Ü
-    @note       º¯ÊıÏÈÉèÖÃ´®¿ÚÅäÖÃ, È»ºó×èÈû½ÓÊÕÊı¾İ.
+    @param[in]  pPara       Para_t      å†…éƒ¨å‚æ•°ç»“æ„ä½“
+    @retval     0 æˆåŠŸ
+    @retval     -1 å¤±è´¥
+    @note       å‡½æ•°å…ˆè®¾ç½®ä¸²å£é…ç½®, ç„¶åé˜»å¡æ¥æ”¶æ•°æ®.
 */
 static int receive_data(Para_t *pPara)
 {
     int ret = 0;
     int fd = 0;
     unsigned char buffer[1024] = {0};
-    int received = 0;
+    int length = 0;
     int sum = 0;
     int i = 0;
     struct termios option;
 
-    /* ´ò¿ª½ÓÊÕ´®¿Ú */
+    /* æ‰“å¼€æ¥æ”¶ä¸²å£ */
     fd = open(pPara->path, O_RDWR | O_NOCTTY);
     if (fd == -1)
     {
@@ -337,48 +313,42 @@ static int receive_data(Para_t *pPara)
         return -21;
     }
 
-    /* »ñÈ¡ÒÔÇ°²ÎÊı */
+    /* è·å–ä»¥å‰å‚æ•° */
     ret = tcgetattr(fd, &option);
 
-    /* ÉèÖÃ²¨ÌØÂÊ */
+    /* è®¾ç½®æ³¢ç‰¹ç‡ */
     ret = cfsetispeed(&option, pPara->baud2);
     ret = cfsetospeed(&option, pPara->baud2);
 
-    /* Êı¾İÎ»8Î» Í£Ö¹Î»1Î» ÆæĞ£Ñé */
+    /* æ•°æ®ä½8ä½ åœæ­¢ä½1ä½ å¥‡æ ¡éªŒ */
     option.c_cflag |= (CLOCAL | CREAD);
     option.c_cflag |= PARENB;
     option.c_cflag |= PARODD;
     option.c_cflag &= ~CSTOPB;
     option.c_cflag &= ~CSIZE;
     option.c_cflag |= CS8;
-    option.c_cflag &= ~CRTSCTS; /* È¡ÏûÓ²¼şÁ÷¿ØÖÆ */
+    option.c_cflag &= ~CRTSCTS; /* å–æ¶ˆç¡¬ä»¶æµæ§åˆ¶ */
 
-    /* Ô­Ê¼Ä£Ê½ */
+    /* åŸå§‹æ¨¡å¼ */
     option.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
     option.c_iflag &= ~(IXON | IXOFF | IXANY | INLCR | ICRNL | IGNCR);
     option.c_oflag &= ~(OPOST | ONLCR | OCRNL);
-    option.c_cc[VTIME] = 10;    /* 10·ÖÖ®1ÃëÎªµ¥Î» */
-    option.c_cc[VMIN] = 8;      /* ½ÓÊÕX¸öº¯Êı·µ»Ø */
+    option.c_cc[VTIME] = 10;    /* 10åˆ†ä¹‹1ç§’ä¸ºå•ä½ */
+    option.c_cc[VMIN] = 8;      /* æ¥æ”¶Xä¸ªå‡½æ•°è¿”å› */
 
-    /* ÉèÖÃÄ£Ê½²¢Çå¿Õ»º³åÇø */
+    /* è®¾ç½®æ¨¡å¼å¹¶æ¸…ç©ºç¼“å†²åŒº */
     tcsetattr(fd, TCSAFLUSH, &option);
 
-    /* ´òÓ¡½ÓÊÕÊı¾İ */
-    printf("press any key to quit.\n");
-    for (; ; sum += received)
+    /* æ‰“å°æ¥æ”¶æ•°æ® */
+    printf("press ctrl+c to quit.\n");
+    for (; ; sum += length)
     {
-        ret = getch2();
-        if (ret != -1)
-        {
-            break;
-        }
-        
-        received = read(fd, buffer, sizeof(buffer));
-        if (received == 0)
+        length = read(fd, buffer, sizeof(buffer));
+        if (length == 0)
         {
             printf("read return 0!\n");
         }
-        if (received == -1)
+        if (length == -1)
         {
             printf("read failed!%d\n", errno);
             ret = -21;
@@ -386,18 +356,18 @@ static int receive_data(Para_t *pPara)
         }
 
         printf("--- ");
-        for (i = 0; i < received; i++)
+        for (i = 0; i < length; i++)
         {
             printf("%02X ", buffer[i]);
-            if (((i + 1) % 16) == 0) printf("\n    "); /* 16¸öÒ»»»ĞĞ */
+            if (((i + 1) % 16) == 0) printf("\n    "); /* 16ä¸ªä¸€æ¢è¡Œ */
         }
         printf("--- %s\n", pPara->name);
     }
 
     ret = 0;
-    
+
 Exit:
-    /* ¹Ø±Õ´®¿Ú */
+    /* å…³é—­ä¸²å£ */
     if (fd != -1)
     {
         close(fd);
