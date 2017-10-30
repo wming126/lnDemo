@@ -365,7 +365,7 @@ static int receive_data(Para_t *pPara)
 
     /* 打印接收数据 */
     printf("press any key to quit.\n");
-    for (; ; )
+    for (; ; sum += received)
     {
         ret = getch2();
         if (ret != -1)
@@ -385,7 +385,6 @@ static int receive_data(Para_t *pPara)
             goto Exit;
         }
 
-        sum += received;
         printf("--- ");
         for (i = 0; i < received; i++)
         {

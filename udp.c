@@ -1,40 +1,39 @@
 /**
     @file       udp.c
-    @brief      VxWorks下udp测试程序
+    @brief      Linux下udp测试程序
     @copyright  senbo
     @author     nick.xu
     @version    V1.0
-    @date       2017.10.13 V1.0 创建
+    @date       2017.10.30 V1.0 创建
     @note       程序用来测试udp点播，组播，广播
 */
 
-#include "vxWorks.h"
 #include "stdio.h"
+#include "stdlib.h"
 #include "unistd.h"
-#include "ioLib.h"
 #include "fcntl.h"
-#include "taskLib.h"
-#include "in.h"
-#include "iv.h"
-#include "sioLib.h"
 #include "string.h"
-#include "logLib.h"
-#include "tickLib.h"
-#include "sockLib.h"
-#include "inetLib.h"
-#include "getOptLib.h" /* vx5.5增加 */
+#include "errno.h"
+#include "termios.h"
+
+#include "sys/mman.h"  
+#include "sys/ioctl.h"
+
+#include "sys/socket.h"
+#include "netinet/in.h"
+#include "arpa/inet.h"
 
 /**
 参数结构体, 程序需要用的参数组成一个结构体, 
 这样可以解决参数传递过多问题.
 */
-typedef struct Udp_s
+typedef struct Para_s
 {
     int mode;
     int type;
     int port;
     int ip;
-}Udp_t;
+}Para_t;
 
 static char *s_string[] = 
 {
@@ -49,10 +48,42 @@ static char *s_string2[] =
     "broad",
 };
 
-static int send_data(Udp_t *pUdp);
-static int receive_data(int ip, int port);
+static int send_data(Para_t *pPara);
+static int receive_data(Para_t *pPara);
 
-static int print_usage()
+/**
+    @fn         static int getch2(void)
+    @brief      非阻塞方式读入控制台按键
+    @author     nick.xu
+    @retval     读取的键值
+    @note       函数类似dos中的getch函数, 读取按键时不会阻塞, 应用于按键触发功能的程序.
+*/
+static int getch2(void)
+{
+    int c = 0;
+    struct termios old_opts, new_opts;
+    int ret = 0;
+    int org_set;
+
+    tcgetattr(STDIN_FILENO, &old_opts);
+    new_opts = old_opts;
+    new_opts.c_lflag &= ~(ICANON | ECHO | ISIG | ECHOPRT);
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_opts);
+    c = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_opts);
+
+    return c;
+}
+
+/**
+    @fn         static int print_usage(void)
+    @brief      打印程序用法
+    @author     nick.xu
+    @retval     0 成功
+    @retval     -1 失败
+    @note       打印程序用法供使用者参考
+*/
+static int print_usage(void)
 {
     printf("Usage: udp -[rw] <port> -[pm] <ip> \n"
            "\t-r: recive data\n"
@@ -72,40 +103,49 @@ static int print_usage()
     return 0;
 }
 
-static int parse_usage(int argc, char *argv[], Udp_t* pUdp)
+/**
+    @fn         static int parse_usage(int argc, char *argv[], Para_t* pPara)
+    @brief      解析命令行参数
+    @author     nick.xu
+    @param[in]  argc        int         参数个数
+    @param[in]  argv        char**      参数指针数组
+    @param[in]  pPara       Para_t      内部参数结构体
+    @retval     0 成功
+    @retval     -1 失败
+    @note       函数使用getopt函数对参数进行解析, 把正确的值写入结构体.
+*/
+static int parse_usage(int argc, char *argv[], Para_t* pPara)
 {
     int ret = 0;
     int valid = 0;
 
-    optind = 1;
-    optreset = 1;
     while ((ret = getopt(argc, argv, "r:w:p:m:")) != -1)
     {
         switch (ret)
         {
         case 'r':
-            pUdp->mode = 0;
-            pUdp->port = strtoul(optarg, NULL, 10);
+            pPara->mode = 0;
+            pPara->port = strtoul(optarg, NULL, 10);
             valid++;
             break;
         case 'w':
-            pUdp->mode = 1;
-            pUdp->port = strtoul(optarg, NULL, 10);
+            pPara->mode = 1;
+            pPara->port = strtoul(optarg, NULL, 10);
             valid++;
             break;
         case 'p':
-            pUdp->type = 0;
-            pUdp->ip = inet_addr(optarg);
+            pPara->type = 0;
+            pPara->ip = inet_addr(optarg);
             break;
         case 'm':
-            pUdp->type = 1;
-            pUdp->ip = inet_addr(optarg);
+            pPara->type = 1;
+            pPara->ip = inet_addr(optarg);
             break;
         }
     }
     
-    /* 没有参数或参数不对或缺参数 */
-    if (optind == 1 || optopt == '?')
+    /* 没有参数 */
+    if (optind == 1)
     {
         print_usage();
         return -1;
@@ -122,59 +162,58 @@ static int parse_usage(int argc, char *argv[], Udp_t* pUdp)
 }
 
 /**
-    @fn         int udp(char *argv)
-    @brief      串口测试函数
+    @fn         int main(int argc, char *argv[])
+    @brief      udp测试函数
     @author     nick.xu
-    @param[in]  MultiAddr   char*   组播地址
-    @param[in]  index       int     网卡设备索引(0-1:gei0-gei7)
-    @param[in]  port        int     端口号(0:8082)
+    @param[in]  argc        int         参数个数
+    @param[in]  argv        char**      参数指针数组
     @retval     0 成功
     @retval     -1 失败
-    @note       函数运行后会接收组播地址数据。
+    @note       函数根据模式分别调用发送和接收函数。
 */
-int udp(char *string)
+int main(int argc, char *argv[])
 {
     int ret = 0;
-    Udp_t udp;
-    char *tempArgv[64];
-    char **argv = tempArgv;
-    char newString[64];
-    int argc = 0;
+    Para_t para;
+
+    /* 默认参数 */
+    memset(&para, 0x00, sizeof(Para_t));
+    para.port = 8080;
     
-    memset(&udp, 0x00, sizeof(Udp_t));
-    
-    strcpy(newString, string);
-    ret = getOptServ (newString, "udp", &argc, argv, 64);
-    if (ret !=0)
+    /* 解析参数 */
+    ret = parse_usage(argc, argv, &para);
+    if (ret != 0)
     {
         ret = -1;
         goto Exit;
     }
     
-    ret = parse_usage(argc, argv, &udp);
-    if (ret != 0)
-    {
-        ret = -2;
-        goto Exit;
-    }
-    
-    printf("%s %s ip=0x%x port=%d\n", s_string[udp.mode], s_string2[udp.type], 
-            udp.ip, udp.port);
+    printf("%s %s ip=0x%x port=%d\n", s_string[para.mode], s_string2[para.type], 
+            para.ip, para.port);
 
-    if (udp.mode)
+    if (para.mode)
     {
-        ret = send_data(&udp);
+        ret = send_data(&para);
     }
     else
     {
-        ret = taskSpawn("tUdp", 100, 0, 1024 * 40, (FUNCPTR)receive_data, udp.ip, udp.port, 0, 0, 0, 0, 0, 0, 0, 0);
+        ret = receive_data(&para);
     }
     
 Exit:
     return ret;
 }
 
-static int send_data(Udp_t *pUdp)
+/**
+    @fn         static int send_data(Para_t *pPara)
+    @brief      发送udp数据
+    @author     nick.xu
+    @param[in]  pPara       Para_t      内部参数结构体
+    @retval     0 成功
+    @retval     -1 失败
+    @note       函数先设置串口配置, 然后发送数据.
+*/
+static int send_data(Para_t *pPara)
 {
     int fd = 0;
     unsigned char buffer[256];
@@ -195,7 +234,7 @@ static int send_data(Udp_t *pUdp)
     
     /* 创建套接字 */
     fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd == ERROR)
+    if (fd == -1)
     {
         printf("socket failed!%d\n", errno);
         ret = -1;
@@ -230,26 +269,28 @@ static int send_data(Udp_t *pUdp)
     }
 
     remote.sin_family = AF_INET;
-    remote.sin_port = htons(pUdp->port);
-    remote.sin_addr.s_addr = pUdp->ip;
+    remote.sin_port = htons(pPara->port);
+    remote.sin_addr.s_addr = pPara->ip;
     
-    ret = sendto(fd, (char *)buffer, 256, 0, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
+    ret = sendto(fd, (char *)buffer, sizeof(buffer), 0, (struct sockaddr *)&remote, sizeof(struct sockaddr_in));
+    if (ret != sizeof(buffer))
+    {
+        printf("sent = %d\n", ret);
+        ret = -21;
+        goto Exit;
+    }
 
-    taskDelay(sysClkRateGet() / 2);    /* VxWorks sendto函数有bug 无法阻塞到数据发送完毕 */
-
-    printf("sent = %d\n", ret);
-
+Exit:
     /* 关闭套接字 */
     if (fd != 0)
     {
         close(fd);
     }
-
-Exit:
+    
     return ret;
 }
 
-static int receive_data(int ip, int port)
+static int receive_data(Para_t *pPara)
 {
     int ret = 0;
     int fd = 0;
@@ -263,7 +304,7 @@ static int receive_data(int ip, int port)
 
     /* 创建套接字 */
     fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd == ERROR)
+    if (fd == -1)
     {
         printf("socket failed!%d\n", errno);
         ret = -1;
@@ -275,8 +316,8 @@ static int receive_data(int ip, int port)
     memset(&remote, 0x00, sizeof(struct sockaddr_in));
 
     local.sin_family = AF_INET;
-    local.sin_port = htons(port); /* 监听端口号 */
-    local.sin_addr.s_addr = ip;   /* 通过IP地址选择网卡 */
+    local.sin_port = htons(pPara->port); /* 监听端口号 */
+    local.sin_addr.s_addr = pPara->ip;   /* 通过IP地址选择网卡 */
 
     /* 绑定端口 */
     if (bind(fd, (struct sockaddr *)&local, socketLength) == -1)
@@ -286,15 +327,20 @@ static int receive_data(int ip, int port)
         goto Exit;
     }
 
-    printf("udp receiving in background, ip=0x%x port=%d.\n", ip, port);
-
-    /* 显示接收数据 */
+    /* 打印接收数据 */
+    printf("press any key to quit.\n");
     for (sum = 0; ; sum += length)
     {
-        length = recvfrom(fd, (char *)buffer, sizeof(buffer), 0, (struct sockaddr *)&remote, &socketLength);
-        if (length == ERROR)
+        ret = getch2();
+        if (ret != -1)
         {
-            printf("recvfrom failed!\n");
+            break;
+        }
+        
+        length = recvfrom(fd, (char *)buffer, sizeof(buffer), 0, (struct sockaddr *)&remote, &socketLength);
+        if (length == -1)
+        {
+            printf("recvfrom failed!%d\n", errno);
             break;
         }
 
@@ -305,11 +351,12 @@ static int receive_data(int ip, int port)
             printf("%02X ", buffer[i]);
             if (((i + 1) % 16) == 0) printf("\n    "); /* 16个一换行 */
         }
-        printf("--- udp server port=%d\n", port);
+        printf("--- udp port=%d\n", pPara->port);
     }
 
+    ret = 0;
+    
 Exit:
-
     if (fd != -1)
     {
         close(fd);
