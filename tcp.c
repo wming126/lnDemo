@@ -22,6 +22,7 @@
 #include "sys/socket.h"
 #include "netinet/in.h"
 #include "arpa/inet.h"
+#include "signal.h"
 
 #define DEBUG     0
 
@@ -137,6 +138,23 @@ static int parse_usage(int argc, char *argv[], Para_t *pPara)
     @param[in]  argc        int         参数个数
     @param[in]  argv        char**      参数指针数组
     @retval     0 成功
+*/
+void signal_sigint(int signo)
+{
+    /* todo 关闭所有socket连接  */
+
+    printf("The program will be exit!\n");
+
+    exit(0);
+}
+
+/**
+    @fn         int main(int argc, char *argv[])
+    @brief      udp测试函数
+    @author     nick.xu
+    @param[in]  argc        int         参数个数
+    @param[in]  argv        char**      参数指针数组
+    @retval     0 成功
     @retval     -1 失败
     @note       函数根据模式分别调用发送和接收函数。
 */
@@ -144,6 +162,9 @@ int main(int argc, char *argv[])
 {
     int ret = 0;
     Para_t para;
+
+    /* 注册ctrl+C信号*/
+    signal(SIGINT, signal_sigint);
 
     /* 默认参数 */
     memset(&para, 0x00, sizeof(Para_t));
