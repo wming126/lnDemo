@@ -243,7 +243,7 @@ static int tcp_server(Para_t *pPara)
 
     if(bind(fd_server, (struct sockaddr*)&server, sizeof(struct sockaddr)) == -1 )
     {
-        perror("bind error:");
+        perror("bind err");
         goto Exit;
     } 
 
@@ -254,7 +254,7 @@ static int tcp_server(Para_t *pPara)
     // 只支持一个连接
     if(listen(fd_server, 1) == -1)
     {
-        perror("Listen err:");
+        perror("Listen err");
         goto Exit;
     }
 
@@ -268,7 +268,7 @@ static int tcp_server(Para_t *pPara)
         printf("press ctrl+c to quit.\n");
         if( (fd_client = accept(fd_server, (struct sockaddr*)&client,&socketLength)) == -1 )
         {
-            perror("accept err:");
+            perror("accept err");
             goto Exit;
         }
         
@@ -346,7 +346,7 @@ static int tcp_client(Para_t *pPara)
 
     if(connect(fd_client, (struct sockaddr *)&client,sizeof(struct sockaddr)))
     {
-        perror("Connext err:");
+        perror("Connect err");
         goto Exit;        
     }
 
