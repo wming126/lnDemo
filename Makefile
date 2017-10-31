@@ -1,8 +1,7 @@
 CROSS_COMPILE=#mips64el-redhat-linux-
 CC=$(CROSS_COMPILE)gcc
 LD=$(CROSS_COMPILE)ld
-DEFS= 
-CFLAGSi += $(DEFS)
+CFLAGSi=
 LDFLAGS= 
 TARGET=ttys udp tcp
 
