@@ -1,8 +1,8 @@
 /**
-    @file       udp.c
-    @brief      Linux下udp测试程序
+    @file       tcp.c
+    @brief      Linux下tcp测试程序
     @copyright  senbo
-    @author     nick.xu
+    @author     王明
     @version    V1.0
     @date       2017.10.30 V1.0 创建
     @note       程序用来测试tcp server和client
