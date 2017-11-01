@@ -2,9 +2,9 @@
     @file       tcp.c
     @brief      Linux下tcp测试程序
     @copyright  senbo
-    @author     王明
+    @author     wming
     @version    V1.0
-    @date       2017.10.30 V1.0 创建
+    @date       2017.10.31 V1.0 创建
     @note       程序用来测试tcp server和client
 */
 
@@ -132,12 +132,11 @@ static int parse_usage(int argc, char *argv[], Para_t *pPara)
 }
 
 /**
-    @fn         int main(int argc, char *argv[])
-    @brief      udp测试函数
-    @author     nick.xu
-    @param[in]  argc        int         参数个数
-    @param[in]  argv        char**      参数指针数组
-    @retval     0 成功
+    @fn         int signal_sigint(int signo)
+    @brief      信号捕捉函数
+    @author     wming
+    @param[in]  signo       int     固定格式
+    @retval     void
 */
 void signal_sigint(int signo)
 {
@@ -151,7 +150,7 @@ void signal_sigint(int signo)
 /**
     @fn         int main(int argc, char *argv[])
     @brief      udp测试函数
-    @author     nick.xu
+    @author     wming
     @param[in]  argc        int         参数个数
     @param[in]  argv        char**      参数指针数组
     @retval     0 成功
@@ -196,7 +195,7 @@ Exit:
 /**
     @fn         static int tcp_server(Para_t *pPara)
     @brief      创建TCP server 并等待接受数据
-    @author     nick.xu
+    @author     wming
     @param[in]  pPara       Para_t      内部参数结构体
     @retval     0 成功
     @retval     -1 失败
@@ -306,6 +305,15 @@ Exit:
     return ret;
 }
 
+/**
+    @fn         static int tcp_client(Para_t *pPara)
+    @brief      创建TCP server 并等待接受数据
+    @author     wming
+    @param[in]  pPara       Para_t      内部参数结构体
+    @retval     0 成功
+    @retval     -1 失败
+    @note       函数先创建soeckt然后链接到server发送数据
+*/
 static int tcp_client(Para_t *pPara)
 {
     int ret = 0;
@@ -376,3 +384,4 @@ Exit:
 
     return ret;
 }
+
