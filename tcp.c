@@ -210,7 +210,7 @@ static int tcp_server(Para_t *pPara)
     int ret = 0;
     struct sockaddr_in server;
     struct sockaddr_in client;
-    socklen_t socketLength = 0;
+    socklen_t socketLength = sizeof(struct sockaddr_in);
     int length = 0;
     int sum = 0;
 
@@ -324,7 +324,7 @@ static int tcp_client(Para_t *pPara)
     int length = 0;
     int sum = 0;
     int i = 0;
-    socklen_t socketLength = 0;
+    socklen_t socketLength = sizeof(struct sockaddr_in);
 
     for(i = 0; i < sizeof(buffer); i++)
     {
