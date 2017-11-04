@@ -26,6 +26,9 @@
 
 #define DEBUG     0
 
+static char * pServer = NULL;
+static char * pClient = NULL;
+
 /**
 参数结构体, 程序需要用的参数组成一个结构体,
 这样可以解决参数传递过多问题.
@@ -33,9 +36,9 @@
 typedef struct Para_s
 {
     int mode;
-    int type;
     int port;
     int ip;
+    unsigned long count;
 } Para_t;
 
 static char *s_string[] =
@@ -60,10 +63,10 @@ static int print_usage(void)
     printf("Usage: tcp -[sc] <ip> <port> \n"
            "\t-s: tcp server\n"
            "\t-c: tcp client\n"
-           "\t-i: ip address 192.168.1.101\n"
+           "\t- : ip address 192.168.1.101\n"
            "\t-p: server or client port\n"
-           "Example: tcp -s -i 192.168.1.200 -p 8080\n"
-           "Example: tcp -c -i 192.168.1.200 -p 8080\n"
+           "Example: tcp -s 192.168.1.200 -p 8080\n"
+           "Example: tcp -c 192.168.1.200 -p 8080\n"
           );
 
     return 0;
@@ -85,27 +88,27 @@ static int parse_usage(int argc, char *argv[], Para_t *pPara)
     int ret = 0;
     int valid = 0;
 
-    while ((ret = getopt(argc, argv, "sci:p:")) != -1)
+    while ((ret = getopt(argc, argv, "s:c:p:n:")) != -1)
     {
         switch (ret)
         {
         case 's':
             pPara->mode = 1;
+            pPara->ip = inet_addr(optarg);
             valid++;
             break;
         case 'c':
             pPara->mode = 0;
+            pPara->ip = inet_addr(optarg);
             valid++;
             break;
-        case 'i':
-            pPara->type = 0;
-            pPara->ip = inet_addr(optarg);
+        case 'n':
+            pPara->count = strtoul(optarg, NULL, 10);
 #if DEBUG
-            printf("pPara->ip:%#x \n",pPara->ip);
+            printf("pPara->count:%u \n",pPara->count);
 #endif
             break;
         case 'p':
-            pPara->type = 0;
             pPara->port = strtoul(optarg, NULL, 10);
 #if DEBUG
             printf("pPara->port:%d \n",pPara->port);
@@ -149,7 +152,7 @@ void signal_sigint(int signo)
 
 /**
     @fn         int main(int argc, char *argv[])
-    @brief      udp测试函数
+    @brief      tcp测试函数
     @author     wming
     @param[in]  argc        int         参数个数
     @param[in]  argv        char**      参数指针数组
@@ -212,16 +215,12 @@ static int tcp_server(Para_t *pPara)
     struct sockaddr_in client;
     socklen_t socketLength = sizeof(struct sockaddr_in);
     int length = 0;
-    int sum = 0;
+    unsigned long sum = 0;
+    int size = sizeof(buffer);
 
     /* 必须清零 */
     memset(&server, 0x00, sizeof(struct sockaddr_in));
     memset(&client, 0x00, sizeof(struct sockaddr_in));
-
-    for (i = 0; i < 256; i++)
-    {
-        buffer[i] = i;
-    }
 
     /* 创建套接字 */
     fd_server = socket(AF_INET, SOCK_STREAM, 0);
@@ -271,9 +270,13 @@ static int tcp_server(Para_t *pPara)
             goto Exit;
         }
         
-        while(1)
+        printf("--- ");
+        for(sum = 0 ; ; sum+=length)
         {
-            length = recv(fd_client,buffer,sizeof(buffer), 0);
+            memset(buffer, 0x00, sizeof(buffer));
+
+
+            length = recv(fd_client,buffer,size, 0);
 
             // 当client关闭连接时recv返回0，当发生错误时返回-1，无论哪种情况都跳转到accept
             if(length <= 0)
@@ -281,18 +284,16 @@ static int tcp_server(Para_t *pPara)
                 break;
             }
 
-            printf("--- ");
             for (i = 0; i < length; i++)
             {
                 printf("%02X ", buffer[i]);
                 if (((i + 1) % 16) == 0) printf("\n    "); /* 16个一换行 */
             }
 
-            printf("---length%u tcp port=%d\n", length, pPara->port);
-
             /* 回应接收到的数据 */
             sendto(fd_client, buffer, length, 0, (struct sockaddr *)&server, socketLength);
         }
+        printf("---sum%lu tcp port=%d\n", sum, pPara->port);
     }
 
 Exit:
@@ -320,15 +321,26 @@ static int tcp_client(Para_t *pPara)
     int fd_client = 0;
     struct sockaddr_in server;
     struct sockaddr_in client;
-    unsigned char buffer[256];
-    int length = 0;
-    int sum = 0;
-    int i = 0;
+    unsigned char* buffer;
+    long length = 0;
+    unsigned long sum = 0;
+    unsigned long i = 0;
     socklen_t socketLength = sizeof(struct sockaddr_in);
+    int size = pPara->count % 10000000;
+    struct timeval tv;
 
-    for(i = 0; i < sizeof(buffer); i++)
+    /* 根据命令行参数动态申请buffer */
+    if((buffer = malloc(size)) == NULL)
     {
-        buffer[i] = i;
+        perror("malloc err");
+        exit(1);
+    }
+
+    memset(buffer, 0x00, size);
+
+    for(i = 0; i < size; i++)
+    {
+        buffer[i] = i%256;
     }
 
     /* 创建套接字 */
@@ -352,29 +364,51 @@ static int tcp_client(Para_t *pPara)
     client.sin_port = htons(pPara->port); /* 监听端口号 */
     client.sin_addr.s_addr = pPara->ip;   /* 通过IP地址选择网卡 */
 
+
+    /* 设置接受超时时间 */
+    tv.tv_sec = 3;
+    tv.tv_usec = 0;
+    if(setsockopt(fd_client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+    {
+        perror("setsockopt err");
+        goto Exit;
+    }
+
     if(connect(fd_client, (struct sockaddr *)&client,sizeof(struct sockaddr)))
     {
         perror("Connect err");
         goto Exit;        
     }
 
-    length = send(fd_client, buffer, sizeof(buffer), 0);
+    length = send(fd_client, buffer, size, 0);
     if(length > 0)
     {
         printf("The data is send to the server!\n");
     }
 
-    printf("Wait for a response from server.\n");
-    memset(buffer, 0 ,sizeof(buffer));
-    length = recvfrom(fd_client, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &socketLength);
+    printf("length = %ld\n",length);
 
-    printf("--- ");
-    for (i = 0; i < length; i++)
+    printf("Wait for a response from server.\n");
+    
+    printf("--------------------- ");
+    for(sum = 0; ; sum += length)
     {
-        printf("%02X ", buffer[i]);
-        if (((i + 1) % 16) == 0) printf("\n    ");
+        memset(buffer, 0, size);
+
+        length = recvfrom(fd_client, buffer, size, 0, (struct sockaddr *)&client, &socketLength);
+
+        if(length <= 0)
+        {
+            printf("---sum = %ld tcp client\n", sum);
+            break;
+        }
+
+        for (i = 0; i < length; i++)
+        {
+            printf("%02X ", buffer[i]);
+            if (((i + 1) % 16) == 0) printf("\n    ");
+        }
     }
-    printf("---length = %u udp client\n",length);
 
 Exit:
     if (fd_client != -1)
